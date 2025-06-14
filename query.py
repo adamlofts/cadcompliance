@@ -64,30 +64,30 @@ def load_step_to_doc(path: str):
     reader.Transfer(doc)
     return doc
 
-
-# Recursively walk the assembly tree
-def walk_assembly(label: TDF_Label, assembly_tool: XCAFDoc_AssemblyTool, shape_tool: XCAFDoc_ShapeTool, indent=0):
-    name = ""
-    import pdb
-    pdb.set_trace()
-    if label.FindAttribute(TDataStd_Name(), False):
-        name_attr = TDataStd_Name()
-        if label.FindAttribute(TDataStd_Name(), name_attr):
-            name = name_attr.Get().ToCString()
-    else:
-        name = "(no name)"
-
-    shape = shape_tool.GetShape(label)
-
-    print("  " * indent + f"{name}")
-
-    if assembly_tool.IsAssembly(label):
-        # This is an assembly node with children
-        children = TDF_LabelSequence()
-        assembly_tool.GetComponents(label, children)
-        for i in range(children.Length()):
-            child_label = children.Value(i + 1)
-            walk_assembly(child_label, assembly_tool, shape_tool, indent + 1)
+#
+# # Recursively walk the assembly tree
+# def walk_assembly(label: TDF_Label, assembly_tool: XCAFDoc_AssemblyTool, shape_tool: XCAFDoc_ShapeTool, indent=0):
+#     name = ""
+#     import pdb
+#     pdb.set_trace()
+#     if label.FindAttribute(TDataStd_Name(), False):
+#         name_attr = TDataStd_Name()
+#         if label.FindAttribute(TDataStd_Name(), name_attr):
+#             name = name_attr.Get().ToCString()
+#     else:
+#         name = "(no name)"
+#
+#     shape = shape_tool.GetShape(label)
+#
+#     print("  " * indent + f"{name}")
+#
+#     if assembly_tool.IsAssembly(label):
+#         # This is an assembly node with children
+#         children = TDF_LabelSequence()
+#         assembly_tool.GetComponents(label, children)
+#         for i in range(children.Length()):
+#             child_label = children.Value(i + 1)
+#             walk_assembly(child_label, assembly_tool, shape_tool, indent + 1)
 
 
 # Main
@@ -266,6 +266,9 @@ wheel/tyre assembly. """
     # Make a box solid
     bbox_shape = BRepPrimAPI_MakeBox(gp_Pnt(xmin, ymin, zmin), gp_Pnt(xmax, ymax, zmax)).Shape()
 
+    intersection_shapes = []
+    intersection_labels = []
+
     def _check(node, node_type, depth, has_children):
         shape = get_shape_from_label(node)
 
@@ -278,22 +281,58 @@ wheel/tyre assembly. """
         intersection = BRepAlgoAPI_Common(shape, bbox_shape)
         intersection.Build()
         intersection_shape = intersection.Shape()
-        shape_type = intersection_shape.ShapeType()
+        # shape_type = intersection_shape.ShapeType()
         if intersection.HasGenerated():
-            print(f'intersection {shape_type}')
-        # import pdb
-        # pdb.set_trace()
-        # if shape_type == TopAbs_ShapeEnum.TopAbs_SOLID:
-        #     solid = TopoDS.Solid(intersection)
-        # else:
-        #     pass
+            intersection_shapes.append(intersection_shape)
+            intersection_labels.append(node)
 
     for root in list_integers(graph.GetRoots()):
         recurse(root, 0, _check)
 
+    return intersection_shapes and (intersection_shapes[0], intersection_labels[0]) or None
 
-check_rule_2_1_3(graph, match_shapes[0], axis)
-check_rule_2_1_3(graph, match_shapes[1], axis)
-check_rule_2_1_3(graph, match_shapes[2], axis)
-check_rule_2_1_3(graph, match_shapes[3], axis)
+
+from OCP.StlAPI import StlAPI_Writer
+
+
+from OCP.TopoDS import TopoDS_Shape, TopoDS_Solid
+from OCP.TopExp import TopExp_Explorer
+from OCP.TopAbs import TopAbs_ShapeEnum
+from OCP.BRepPrimAPI import BRepPrimAPI_MakeBox
+from OCP.BRepMesh import BRepMesh_IncrementalMesh
+from OCP.TopoDS import TopoDS_Shape
+
+
+def get_first_solid(shape: TopoDS_Shape) -> TopoDS_Shape | None:
+    explorer = TopExp_Explorer(shape, TopAbs_ShapeEnum.TopAbs_SOLID)
+    if explorer.More():
+        return explorer.Current()
+    return None
+
+
+def write_stl(shape, fname):
+    # Create an STL writer
+    writer = StlAPI_Writer()
+    writer.ASCIIMode = False
+
+    solid = get_first_solid(shape)
+
+    mesh = BRepMesh_IncrementalMesh(solid, 0.1, True, 0.5, True)
+
+    # Write the shape to STL
+    assert(writer.Write(solid, fname))
+
+
+for match_shape, match_label in zip(match_shapes, match_labels):
+    result = check_rule_2_1_3(graph, match_shape, axis)
+    if not result:
+        continue
+    intersection_shape, intersection_label = result
+
+    attr = TDataStd_Name()
+    match_label.FindAttribute(TDataStd_Name().ID(), attr)
+    intersection_attr = TDataStd_Name()
+    intersection_label.FindAttribute(TDataStd_Name().ID(), intersection_attr)
+    print(f'intersection with [{attr.Get().ToExtString()}] and [{intersection_attr.Get().ToExtString()}]')
+    write_stl(intersection_shape, 'shape.stl')
 
