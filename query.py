@@ -64,31 +64,6 @@ def load_step_to_doc(path: str):
     reader.Transfer(doc)
     return doc
 
-#
-# # Recursively walk the assembly tree
-# def walk_assembly(label: TDF_Label, assembly_tool: XCAFDoc_AssemblyTool, shape_tool: XCAFDoc_ShapeTool, indent=0):
-#     name = ""
-#     import pdb
-#     pdb.set_trace()
-#     if label.FindAttribute(TDataStd_Name(), False):
-#         name_attr = TDataStd_Name()
-#         if label.FindAttribute(TDataStd_Name(), name_attr):
-#             name = name_attr.Get().ToCString()
-#     else:
-#         name = "(no name)"
-#
-#     shape = shape_tool.GetShape(label)
-#
-#     print("  " * indent + f"{name}")
-#
-#     if assembly_tool.IsAssembly(label):
-#         # This is an assembly node with children
-#         children = TDF_LabelSequence()
-#         assembly_tool.GetComponents(label, children)
-#         for i in range(children.Length()):
-#             child_label = children.Value(i + 1)
-#             walk_assembly(child_label, assembly_tool, shape_tool, indent + 1)
-
 
 # Main
 doc = load_step_to_doc("Formula Student Concept v1.step")
