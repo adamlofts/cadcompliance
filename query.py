@@ -198,7 +198,7 @@ match_shapes = [get_shape_from_label(label) for label in match_labels]
 
 from OCP.BRepGProp import BRepGProp
 from OCP.GProp import GProp_GProps
-from OCP.gp import gp_Pnt
+from OCP.gp import gp_Pnt, gp_Vec, gp_Ax2, gp_Dir
 
 def get_center_of_mass(shape):
     """
@@ -219,3 +219,23 @@ coms = [get_center_of_mass(shape) for shape in match_shapes]
 
 for com in coms:
     print(f"COM: {com.X()},{com.Y()},{com.Z()}")
+
+def find_coord_system(coms):
+    # Find the car coordinate system using 3 points
+    a = coms[0]
+    b = coms[1]
+    c = coms[2]
+
+    v1 = gp_Vec(a, b)
+    v2 = gp_Vec(a, c)
+
+    # "forward" direction is largest vec, so swap so v1 is biggest
+    if v2.Magnitude() > v1.Magnitude():
+        t = v1
+        v1 = v2
+        v2 = t
+
+    axis = gp_Ax2(a, gp_Dir(v1.Crossed(v2)), gp_Dir(v1))  # pnt, normal, Vx
+    return axis
+
+find_coord_system(coms)
