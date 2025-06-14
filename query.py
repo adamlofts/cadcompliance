@@ -91,49 +91,28 @@ shape_tool = XCAFDoc_DocumentTool.ShapeTool_s(doc.Main())
 graph = XCAFDoc_AssemblyGraph(doc)
 
 # https://github.com/KiCad/kicad-source-mirror/blob/9f7fa4df662905ea52bc0b5915e477b0333fb1c3/pcbnew/exporters/step/step_pcb_model.cpp#L541
-for i in range(1, graph.NbNodes() + 1):
-    node_type = graph.GetNodeType( i )
-    node = graph.GetNode( i )
+
+def list_integers(packedmap):
+    for i in range(packedmap.GetMinimalMapped(), packedmap.GetMaximalMapped() + 1):
+        if packedmap.Contains(i):
+            yield i
+
+
+def recurse(label, depth):
+    node_type = graph.GetNodeType(label)
+    node = graph.GetNode(label)
     # print(node_type)
     # print(node)
     # s = TCollection_AsciiString()
     # v = TDF_Tool.Entry_s( node, s)
     attr = TDataStd_Name()
     node.FindAttribute(TDataStd_Name().ID(), attr)
-    print(attr.Get().ToExtString())
+    print(f"{'  ' * depth} [{node_type}] {attr.Get().ToExtString()}")
 
-# it = XCAFDoc_AssemblyIterator(doc)
-#
-# while it.More():
-#     item = it.Current()
-#     print(item)
-#     import pdb
-#     pdb.set_trace()
-#     it.Next()
-# #
-# # Iterate over graph nodes
-# it = graph.GetIterator()
-# while it.More():
-#     label = it.Current()
-#
-#     # Try to extract name
-#     if label.FindAttribute(TDataStd_Name.GetID()):
-#         name_attr = TDataStd_Name.DownCast(label.FindAttribute(TDataStd_Name.GetID()))
-#         name = name_attr.Get().ToCString()
-#     else:
-#         name = "(unnamed)"
-#
-#     print("Node:", name)
-#
-#     it.Next()
-#
+    if graph.HasChildren(label):
+        for child in list_integers(graph.GetChildren(label)):
+            recurse(child, depth+1)
 
-# assembly_tool = XCAFDoc_AssemblyTool()
-#
-# # Get top-level shapes (typically 1 root assembly)
-# roots = TDF_LabelSequence()
-# shape_tool.GetFreeShapes(roots)
-#
-# for i in range(roots.Length()):
-#     label = roots.Value(i + 1)
-#     walk_assembly(label, assembly_tool, shape_tool)
+for root in list_integers(graph.GetRoots()):
+    recurse(root, 0)
+
