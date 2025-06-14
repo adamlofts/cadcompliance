@@ -4,6 +4,7 @@ from typing import List
 from OCP.BRepMesh import BRepMesh_IncrementalMesh
 from OCP.IFSelect import IFSelect_RetDone
 from OCP.OCP.TCollection import TCollection_ExtendedString
+from OCP.OCP.TopoDS import TopoDS_Shape
 from OCP.STEPControl import STEPControl_Reader
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -186,4 +187,35 @@ for root in list_integers(graph.GetRoots()):
 for match_label in match_labels:
     print(f"Match: {match_label}")
 
-## 
+
+def get_shape_from_label(label: TDF_Label) -> TopoDS_Shape:
+    # Given an XCAF ShapeTool and a label, return the TopoDS_Shape stored in the label.
+    shape = TopoDS_Shape()
+    assert(XCAFDoc_ShapeTool().GetShape_s(label, shape))
+    return shape
+
+match_shapes = [get_shape_from_label(label) for label in match_labels]
+
+from OCP.BRepGProp import BRepGProp
+from OCP.GProp import GProp_GProps
+from OCP.gp import gp_Pnt
+
+def get_center_of_mass(shape):
+    """
+    Compute the center of mass of the given TopoDS_Shape.
+
+    Parameters:
+        shape (TopoDS_Shape): The shape to compute the center of mass for.
+
+    Returns:
+        (x, y, z): Coordinates of the center of mass.
+    """
+    props = GProp_GProps()
+    BRepGProp.VolumeProperties_s(shape, props)
+    com = props.CentreOfMass()
+    return com
+
+coms = [get_center_of_mass(shape) for shape in match_shapes]
+
+for com in coms:
+    print(f"COM: {com.X()},{com.Y()},{com.Z()}")
