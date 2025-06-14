@@ -163,8 +163,27 @@ Return a JSON string array, with a name for each node, representing wheels."""},
 )
 
 matches = response.output_parsed
-
-import pdb
-pdb.set_trace()
 for match in matches.items:
     print(f"Match: {match}")
+
+wheel_names = [match.name for match in matches.items]
+
+match_labels = []
+
+def collect_match(node, node_type, depth):
+    # only match occurences
+    if node_type != XCAFDoc_AssemblyGraph.NodeType_Occurrence:
+        return
+
+    attr = TDataStd_Name()
+    node.FindAttribute(TDataStd_Name().ID(), attr)
+    if attr.Get().ToExtString() in wheel_names:
+        match_labels.append(node)
+
+for root in list_integers(graph.GetRoots()):
+    recurse(root, 0, collect_match)
+
+for match_label in match_labels:
+    print(f"Match: {match_label}")
+
+## 
