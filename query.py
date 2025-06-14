@@ -116,17 +116,18 @@ def recurse(label, depth, func):
     # v = TDF_Tool.Entry_s( node, s)
     attr = TDataStd_Name()
     node.FindAttribute(TDataStd_Name().ID(), attr)
-    print(f"{'  ' * depth} [{node_type}] {attr.Get().ToExtString()}")
+    # print(f"{'  ' * depth} [{node_type}] {attr.Get().ToExtString()}")
 
-    func(node, node_type, depth)
+    has_children = graph.HasChildren(label)
+    func(node, node_type, depth, has_children)
 
-    if graph.HasChildren(label):
+    if has_children:
         for child in list_integers(graph.GetChildren(label)):
             recurse(child, depth + 1, func)
 
 textio = io.StringIO()
 
-def write_node_text(node, node_type, depth):
+def write_node_text(node, node_type, depth, has_children):
     attr = TDataStd_Name()
     node.FindAttribute(TDataStd_Name().ID(), attr)
     textio.write(f"{'  ' * depth} [{node_type}] {attr.Get().ToExtString()}\n")
@@ -171,7 +172,7 @@ wheel_names = [match.name for match in matches.items]
 
 match_labels = []
 
-def collect_match(node, node_type, depth):
+def collect_match(node, node_type, depth, has_children):
     # only match occurences
     if node_type != XCAFDoc_AssemblyGraph.NodeType_Occurrence:
         return
@@ -238,4 +239,61 @@ def find_coord_system(coms):
     axis = gp_Ax2(a, gp_Dir(v1.Crossed(v2)), gp_Dir(v1))  # pnt, normal, Vx
     return axis
 
-find_coord_system(coms)
+axis = find_coord_system(coms)
+
+
+from OCP.BRepPrimAPI import BRepPrimAPI_MakeBox
+from OCP.BRepBndLib import BRepBndLib
+from OCP.Bnd import Bnd_Box
+from OCP.AIS import AIS_Shape
+from OCP.BRepPrimAPI import BRepPrimAPI_MakeBox
+from OCP.BRepAlgoAPI import BRepAlgoAPI_Common
+from OCP.TopAbs import TopAbs_ShapeEnum
+
+def check_rule_2_1_3(graph, wheel, axis):
+    """ No part of the vehicle may enter a keep-out-zone defined by two lines extending vertically
+from positions 75 mm in front of and 75 mm behind the outer diameter of the front and
+rear tyres in the side view of the vehicle, with steering straight ahead. This keep-out zone
+extends laterally from the outside plane of the wheel/tyre to the inboard plane of the
+wheel/tyre assembly. """
+
+    # Create bounding box of wheel
+    box = Bnd_Box()
+    BRepBndLib().Add_s(wheel, box)
+
+    [xmin, ymin, zmin, xmax, ymax, zmax] = box.Get()
+
+    # Make a box solid
+    bbox_shape = BRepPrimAPI_MakeBox(gp_Pnt(xmin, ymin, zmin), gp_Pnt(xmax, ymax, zmax)).Shape()
+
+    def _check(node, node_type, depth, has_children):
+        shape = get_shape_from_label(node)
+
+        if shape.IsEqual(wheel):
+            return  # no self test
+
+        if has_children:
+            return  # only test leafs
+
+        intersection = BRepAlgoAPI_Common(shape, bbox_shape)
+        intersection.Build()
+        intersection_shape = intersection.Shape()
+        shape_type = intersection_shape.ShapeType()
+        if intersection.HasGenerated():
+            print(f'intersection {shape_type}')
+        # import pdb
+        # pdb.set_trace()
+        # if shape_type == TopAbs_ShapeEnum.TopAbs_SOLID:
+        #     solid = TopoDS.Solid(intersection)
+        # else:
+        #     pass
+
+    for root in list_integers(graph.GetRoots()):
+        recurse(root, 0, _check)
+
+
+check_rule_2_1_3(graph, match_shapes[0], axis)
+check_rule_2_1_3(graph, match_shapes[1], axis)
+check_rule_2_1_3(graph, match_shapes[2], axis)
+check_rule_2_1_3(graph, match_shapes[3], axis)
+
