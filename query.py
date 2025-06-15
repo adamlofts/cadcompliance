@@ -1,4 +1,6 @@
 import io
+import subprocess
+import tempfile
 from typing import List
 
 from OCP.BRepMesh import BRepMesh_IncrementalMesh
@@ -298,6 +300,18 @@ def write_stl(shape, fname):
     assert(writer.Write(solid, fname))
 
 
+def render(shape):
+
+    with tempfile.NamedTemporaryFile(delete_on_close=True) as fp:
+
+        # Write shape stl
+        write_stl(shape, fp.name)
+
+        # run blender
+
+        subprocess.run(['blender', '--background', '--python', 'render_scene.py', '--', fp.name])
+
+
 for match_shape, match_label in zip(match_shapes, match_labels):
     result = check_rule_2_1_3(graph, match_shape, axis)
     if not result:
@@ -309,5 +323,10 @@ for match_shape, match_label in zip(match_shapes, match_labels):
     intersection_attr = TDataStd_Name()
     intersection_label.FindAttribute(TDataStd_Name().ID(), intersection_attr)
     print(f'intersection with [{attr.Get().ToExtString()}] and [{intersection_attr.Get().ToExtString()}]')
-    write_stl(intersection_shape, 'shape.stl')
+    # write_stl(intersection_shape, 'shape.stl')
+
+    render(intersection_shape)
+
+
+
 
