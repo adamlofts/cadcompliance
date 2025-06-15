@@ -300,7 +300,7 @@ def write_stl(shape, fname):
     assert(writer.Write(solid, fname))
 
 
-def render(grey_shapes, red_shapes):
+def render(grey_shapes, red_shapes, filename):
 
     grey_files = [tempfile.NamedTemporaryFile(delete_on_close=False) for _ in grey_shapes]
     red_files = [tempfile.NamedTemporaryFile(delete_on_close=False, prefix='red') for _ in red_shapes]
@@ -313,10 +313,11 @@ def render(grey_shapes, red_shapes):
 
     files = [f.name for f in grey_files] + [f.name for f in red_files]
     print(files)
-    import pdb
-    pdb.set_trace()
     subprocess.run(['blender', '--background', '--python', 'render_scene.py', '--'] +
                    files)
+    with open(filename, 'wb') as f:
+        with open('output.png', 'rb') as inf:
+            f.write(inf.read())
 
 
 for match_shape, match_label in zip(match_shapes, match_labels):
@@ -333,7 +334,8 @@ for match_shape, match_label in zip(match_shapes, match_labels):
     # write_stl(intersection_shape, 'shape.stl')
 
 
-    render(match_shapes, [intersection_shape])
+    render(match_shapes, [intersection_shape], f'inter-{attr.Get().ToExtString()}.png')
+
 
 
 
