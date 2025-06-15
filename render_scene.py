@@ -67,12 +67,21 @@ cam.data.clip_end = 10000.0
 #bpy.ops.view3d.camera_to_view_selected()  # Adjusts camera to see the object
 
 
-bpy.ops.object.light_add(type='SUN', location=(50, -5, 5))
-bpy.context.object.data.energy = 5  # Adjust brightness
+bpy.ops.object.light_add(type='SUN', location=(50000, 50000, 50000))
+bpy.context.object.data.energy = 4  # Adjust brightness
 
-# Add light
-bpy.ops.object.light_add(type='AREA', location=(50, -5, 5))
-bpy.context.object.data.energy = 1000
+bpy.ops.object.light_add(type='SUN', location=(50000, 50000, -50000))
+bpy.context.object.data.energy = 4  # Adjust brightness
+
+bpy.ops.object.light_add(type='SUN', location=(-50000, -50000, 50000))
+bpy.context.object.data.energy = 4  # Adjust brightness
+
+bpy.ops.object.light_add(type='SUN', location=(-50000, -50000, -50000))
+bpy.context.object.data.energy = 4  # Adjust brightness
+
+# # Add light
+# bpy.ops.object.light_add(type='AREA', location=(50, -5, 5))
+# bpy.context.object.data.energy = 1000
 
 # Set render settings
 # bpy.context.scene.render.engine = 'CYCLES'

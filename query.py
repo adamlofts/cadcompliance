@@ -1,3 +1,4 @@
+import base64
 import io
 import subprocess
 import tempfile
@@ -102,68 +103,130 @@ def recurse(label, depth, func):
         for child in list_integers(graph.GetChildren(label)):
             recurse(child, depth + 1, func)
 
-textio = io.StringIO()
+def find_wheels_by_name_in_tree():
+    textio = io.StringIO()
 
-def write_node_text(node, node_type, depth, has_children):
-    attr = TDataStd_Name()
-    node.FindAttribute(TDataStd_Name().ID(), attr)
-    textio.write(f"{'  ' * depth} [{node_type}] {attr.Get().ToExtString()}\n")
+    def write_node_text(node, node_type, depth, has_children):
+        attr = TDataStd_Name()
+        node.FindAttribute(TDataStd_Name().ID(), attr)
+        textio.write(f"{'  ' * depth} [{node_type}] {attr.Get().ToExtString()}\n")
 
-for root in list_integers(graph.GetRoots()):
-    recurse(root, 0, write_node_text)
+    for root in list_integers(graph.GetRoots()):
+        recurse(root, 0, write_node_text)
 
-textio.seek(0)
-text = textio.read()
+    textio.seek(0)
+    text = textio.read()
 
-client = OpenAI()
-
-
-class AssemblyNode(BaseModel):
-    name: str
-    reason: str
+    client = OpenAI()
 
 
-class Matches(BaseModel):
-    items: List[AssemblyNode]
+    class AssemblyNode(BaseModel):
+        name: str
+        reason: str
+
+
+    class Matches(BaseModel):
+        items: List[AssemblyNode]
 
 
 
-response = client.responses.parse(
-    model="gpt-4o-2024-08-06",
-    input=[
-        {"role": "system", "content": """You will be given a CAD assembly tree for a formula student car.
-Return a JSON string array, with a name for each node, representing wheels."""},
-        {
-            "role": "user",
-            "content":  text,
-        },
-    ],
-    text_format=Matches,
-)
+    response = client.responses.parse(
+        model="gpt-4o-2024-08-06",
+        input=[
+            {"role": "system", "content": """You will be given a CAD assembly tree for a formula student car.
+    Return a JSON string array, with a name for each node, representing wheels."""},
+            {
+                "role": "user",
+                "content":  text,
+            },
+        ],
+        text_format=Matches,
+    )
 
-matches = response.output_parsed
-for match in matches.items:
-    print(f"Match: {match}")
+    matches = response.output_parsed
+    for match in matches.items:
+        print(f"Match: {match}")
 
-wheel_names = [match.name for match in matches.items]
+    wheel_names = [match.name for match in matches.items]
 
-match_labels = []
+    match_labels = []
 
-def collect_match(node, node_type, depth, has_children):
-    # only match occurences
-    if node_type != XCAFDoc_AssemblyGraph.NodeType_Occurrence:
-        return
+    def collect_match(node, node_type, depth, has_children):
+        # only match occurences
+        if node_type != XCAFDoc_AssemblyGraph.NodeType_Occurrence:
+            return
 
-    attr = TDataStd_Name()
-    node.FindAttribute(TDataStd_Name().ID(), attr)
-    if attr.Get().ToExtString() in wheel_names:
-        match_labels.append(node)
+        attr = TDataStd_Name()
+        node.FindAttribute(TDataStd_Name().ID(), attr)
+        if attr.Get().ToExtString() in wheel_names:
+            match_labels.append(node)
 
-for root in list_integers(graph.GetRoots()):
-    recurse(root, 0, collect_match)
+    for root in list_integers(graph.GetRoots()):
+        recurse(root, 0, collect_match)
 
-for match_label in match_labels:
-    print(f"Match: {match_label}")
+    for match_label in match_labels:
+        print(f"Match: {match_label}")
+
+    return match_labels
+
+
+def find_wheels_visually():
+
+    client = OpenAI()
+
+    all_leaf_shapes = []
+    def _all(label, node_type, depth, has_children):
+        if has_children:
+            return  # only test leafs
+        all_leaf_shapes.append(get_shape_from_label(label))
+
+    for rlabel in list_integers(graph.GetRoots()):
+        recurse(rlabel, 0, _all)
+
+    match_labels = []
+    def _test_visually(label, node_type, depth, has_children):
+        if has_children:
+            return  # only test leafs
+
+        attr = TDataStd_Name()
+        label.FindAttribute(TDataStd_Name().ID(), attr)
+
+        test_shape = get_shape_from_label(label)
+
+        grey_shapes = [shape for shape in all_leaf_shapes if not shape.IsEqual(test_shape)]
+        red_shapes = [test_shape]
+
+        fname = f'test-{attr.Get().ToExtString()}.png'
+        render(grey_shapes, red_shapes, fname)
+
+        with open(fname, "rb") as image_file:
+            b64 = base64.b64encode(image_file.read()).decode("utf-8")
+
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": """You will be shown a CAD model of a race car. 
+                Is the red highlighted component a wheel of the car, or a part of the wheel?. Respond with yes or no.
+                If nothing is highlighted then say no. You should be able to see the four wheels in the image."""},
+                {"role": "user", "content": [
+                    {"type": "image_url", "image_url": {
+                        "url": f"data:image/png;base64,{b64}"
+                    }}
+                ]}
+            ],
+        )
+
+        content = response.choices[0].message.content
+
+        is_yes = 'yes' in content.lower()
+        print(f"test: [{is_yes and "YES" or "NO"}] [{node_type}] {attr.Get().ToExtString()} -> {content}")
+        if is_yes:
+            match_labels.append(label)
+
+    for label in list_integers(graph.GetRoots()):
+        recurse(label, 0, _test_visually)
+
+    return match_labels
 
 
 def get_shape_from_label(label: TDF_Label) -> TopoDS_Shape:
@@ -171,8 +234,6 @@ def get_shape_from_label(label: TDF_Label) -> TopoDS_Shape:
     shape = TopoDS_Shape()
     assert(XCAFDoc_ShapeTool().GetShape_s(label, shape))
     return shape
-
-match_shapes = [get_shape_from_label(label) for label in match_labels]
 
 from OCP.BRepGProp import BRepGProp
 from OCP.GProp import GProp_GProps
@@ -192,31 +253,6 @@ def get_center_of_mass(shape):
     BRepGProp.VolumeProperties_s(shape, props)
     com = props.CentreOfMass()
     return com
-
-coms = [get_center_of_mass(shape) for shape in match_shapes]
-
-for com in coms:
-    print(f"COM: {com.X()},{com.Y()},{com.Z()}")
-
-def find_coord_system(coms):
-    # Find the car coordinate system using 3 points
-    a = coms[0]
-    b = coms[1]
-    c = coms[2]
-
-    v1 = gp_Vec(a, b)
-    v2 = gp_Vec(a, c)
-
-    # "forward" direction is largest vec, so swap so v1 is biggest
-    if v2.Magnitude() > v1.Magnitude():
-        t = v1
-        v1 = v2
-        v2 = t
-
-    axis = gp_Ax2(a, gp_Dir(v1.Crossed(v2)), gp_Dir(v1))  # pnt, normal, Vx
-    return axis
-
-axis = find_coord_system(coms)
 
 
 from OCP.BRepPrimAPI import BRepPrimAPI_MakeBox
@@ -312,13 +348,43 @@ def render(grey_shapes, red_shapes, filename):
         write_stl(shape, file.name)
 
     files = [f.name for f in grey_files] + [f.name for f in red_files]
-    print(files)
     subprocess.run(['blender', '--background', '--python', 'render_scene.py', '--'] +
-                   files)
+                   files, capture_output=True)
     with open(filename, 'wb') as f:
         with open('output.png', 'rb') as inf:
             f.write(inf.read())
 
+
+###
+
+
+match_labels = find_wheels_visually()
+match_shapes = [get_shape_from_label(label) for label in match_labels]
+
+coms = [get_center_of_mass(shape) for shape in match_shapes]
+
+for com in coms:
+    print(f"COM: {com.X()},{com.Y()},{com.Z()}")
+
+def find_coord_system(coms):
+    # Find the car coordinate system using 3 points
+    a = coms[0]
+    b = coms[1]
+    c = coms[2]
+
+    v1 = gp_Vec(a, b)
+    v2 = gp_Vec(a, c)
+
+    # "forward" direction is largest vec, so swap so v1 is biggest
+    if v2.Magnitude() > v1.Magnitude():
+        t = v1
+        v1 = v2
+        v2 = t
+
+    axis = gp_Ax2(a, gp_Dir(v1.Crossed(v2)), gp_Dir(v1))  # pnt, normal, Vx
+    return axis
+
+axis = None# find_coord_system(coms)
 
 for match_shape, match_label in zip(match_shapes, match_labels):
     result = check_rule_2_1_3(graph, match_shape, axis)
