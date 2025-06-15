@@ -196,6 +196,9 @@ def find_wheels_visually():
         grey_shapes = [shape for shape in all_leaf_shapes if not shape.IsEqual(test_shape)]
         red_shapes = [test_shape]
 
+        if 'Wheel' not in attr.Get().ToExtString():
+            return
+
         fname = f'test-{attr.Get().ToExtString()}.png'
         render(grey_shapes, red_shapes, fname)
 
@@ -205,9 +208,11 @@ def find_wheels_visually():
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
-                {"role": "system", "content": """You will be shown a CAD model of a race car. 
-                Is the red highlighted component a wheel of the car, or a part of the wheel?. Respond with yes or no.
-                If nothing is highlighted then say no. You should be able to see the four wheels in the image."""},
+                {"role": "system", "content": """You will be shown a CAD model of an open wheel race car. 
+                One solid will be RED. If nothing is highlighted then respond with the word none.
+                Is the red highlighted component a wheel, tyre, rim or a part of the wheel? Either at the front or
+                back. Do not count the suspension.
+                If so, respond with the word yes. Otherwise say no and why not"""},
                 {"role": "user", "content": [
                     {"type": "image_url", "image_url": {
                         "url": f"data:image/png;base64,{b64}"

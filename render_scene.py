@@ -1,5 +1,6 @@
 import bpy
 import sys
+import mathutils
 
 # Get the STL path from the command line args
 argv = sys.argv
@@ -67,17 +68,31 @@ cam.data.clip_end = 10000.0
 #bpy.ops.view3d.camera_to_view_selected()  # Adjusts camera to see the object
 
 
-bpy.ops.object.light_add(type='SUN', location=(50000, 50000, 50000))
-bpy.context.object.data.energy = 4  # Adjust brightness
+# Cube corner offsets from center
+offsets = [
+    (-1, -1, -1), (1, -1, -1),
+    (-1, 1, -1),  (1, 1, -1),
+    (-1, -1, 1),  (1, -1, 1),
+    (-1, 1, 1),   (1, 1, 1),
+]
 
-bpy.ops.object.light_add(type='SUN', location=(50000, 50000, -50000))
-bpy.context.object.data.energy = 4  # Adjust brightness
+def add_sun_at(pos):
+    light_data = bpy.data.lights.new(name="Sun", type='SUN')
+    light_data.energy = 0.5  # lower energy to prevent overexposure
+    light_object = bpy.data.objects.new(name="Sun", object_data=light_data)
+    bpy.context.collection.objects.link(light_object)
 
-bpy.ops.object.light_add(type='SUN', location=(-50000, -50000, 50000))
-bpy.context.object.data.energy = 4  # Adjust brightness
+    light_object.location = pos
 
-bpy.ops.object.light_add(type='SUN', location=(-50000, -50000, -50000))
-bpy.context.object.data.energy = 4  # Adjust brightness
+    # Point toward origin
+    direction = mathutils.Vector((0, 0, 0)) - mathutils.Vector(pos)
+    light_object.rotation_euler = direction.to_track_quat('Z', 'Y').to_euler()
+
+d = 50000
+for offset in offsets:
+
+    add_sun_at((offset[0]*d, offset[1]*d, offset[2]*d))
+
 
 # # Add light
 # bpy.ops.object.light_add(type='AREA', location=(50, -5, 5))
