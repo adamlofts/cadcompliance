@@ -300,16 +300,23 @@ def write_stl(shape, fname):
     assert(writer.Write(solid, fname))
 
 
-def render(shape):
+def render(grey_shapes, red_shapes):
 
-    with tempfile.NamedTemporaryFile(delete_on_close=True) as fp:
+    grey_files = [tempfile.NamedTemporaryFile(delete_on_close=False) for _ in grey_shapes]
+    red_files = [tempfile.NamedTemporaryFile(delete_on_close=False, prefix='red') for _ in red_shapes]
 
-        # Write shape stl
-        write_stl(shape, fp.name)
+    for file, shape in zip(grey_files, grey_shapes):
+        write_stl(shape, file.name)
 
-        # run blender
+    for file, shape in zip(red_files, red_shapes):
+        write_stl(shape, file.name)
 
-        subprocess.run(['blender', '--background', '--python', 'render_scene.py', '--', fp.name])
+    files = [f.name for f in grey_files] + [f.name for f in red_files]
+    print(files)
+    import pdb
+    pdb.set_trace()
+    subprocess.run(['blender', '--background', '--python', 'render_scene.py', '--'] +
+                   files)
 
 
 for match_shape, match_label in zip(match_shapes, match_labels):
@@ -325,7 +332,8 @@ for match_shape, match_label in zip(match_shapes, match_labels):
     print(f'intersection with [{attr.Get().ToExtString()}] and [{intersection_attr.Get().ToExtString()}]')
     # write_stl(intersection_shape, 'shape.stl')
 
-    render(intersection_shape)
+
+    render(match_shapes, [intersection_shape])
 
 
 

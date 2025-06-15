@@ -4,9 +4,7 @@ import sys
 # Get the STL path from the command line args
 argv = sys.argv
 argv = argv[argv.index("--") + 1:]  # get all args after "--"
-stl_path = argv[0]
-# output_path = argv[1]
-
+stl_paths = argv
 
 # Select all objects
 bpy.ops.object.select_all(action='SELECT')
@@ -21,22 +19,39 @@ bpy.ops.object.delete()
 # if bpy.context.active_object and bpy.context.active_object.mode != 'OBJECT':
 # bpy.ops.object.mode_set(mode='OBJECT')
 
-bpy.ops.wm.stl_import(filepath="/home/adam/dev/2025/cadcompliance/shape.stl")
+for stl in stl_paths:
+    bpy.ops.wm.stl_import(filepath=stl)
+    print(f"render {stl}")
+    obj = bpy.context.selected_objects[0]
 
+    if 'red' in stl:
+        # Create and assign red material
+        mat = bpy.data.materials.new(name="Red_Material")
+        mat.diffuse_color = (1, 0, 0, 1)  # RGBA - red
+        mat.metallic = 0.5  # Add some metallic for better look
+        mat.roughness = 0.3  # Slightly glossy
+
+        # Assign material to object
+        if obj.data.materials:
+            obj.data.materials[0] = mat
+        else:
+            obj.data.materials.append(mat)
 
 # Set up the scene
-obj = bpy.context.selected_objects[0]
-bpy.context.view_layer.objects.active = obj
+# bpy.context.view_layer.objects.active = obj
 
 # Center object
-bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='BOUNDS')
-obj.location = (0, 0, 0)
+#bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='BOUNDS')
+# obj.location = (0, 0, 0)
 
 # Add camera
-bpy.ops.object.camera_add(location=(0, 0, 50))
+bpy.ops.object.camera_add(location=(0, 0, 5000))
 cam = bpy.context.object
 bpy.context.scene.camera = cam
-cam.data.lens = 50
+#cam.data.lens = 50
+cam.data.lens = 25
+cam.data.clip_start = 1  # Near clipping distance (default is usually 0.1)
+cam.data.clip_end = 10000.0
 
 #direction = mathutils.Vector((0.0, 0.0, 0.0)) - cam.location
 
@@ -49,7 +64,7 @@ cam.data.lens = 50
 
 #cam.rotation_euler = (1.1, 0, 0.785)
 
-bpy.ops.view3d.camera_to_view_selected()  # Adjusts camera to see the object
+#bpy.ops.view3d.camera_to_view_selected()  # Adjusts camera to see the object
 
 
 bpy.ops.object.light_add(type='SUN', location=(50, -5, 5))
