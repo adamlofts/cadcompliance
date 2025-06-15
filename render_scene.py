@@ -29,8 +29,8 @@ for stl in stl_paths:
         # Create and assign red material
         mat = bpy.data.materials.new(name="Red_Material")
         mat.diffuse_color = (1, 0, 0, 1)  # RGBA - red
-        mat.metallic = 0.5  # Add some metallic for better look
-        mat.roughness = 0.3  # Slightly glossy
+        mat.metallic = 0.  # Add some metallic for better look
+        mat.roughness = 0.7  # Slightly glossy
 
         # Assign material to object
         if obj.data.materials:

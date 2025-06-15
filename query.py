@@ -196,9 +196,6 @@ def find_wheels_visually():
         grey_shapes = [shape for shape in all_leaf_shapes if not shape.IsEqual(test_shape)]
         red_shapes = [test_shape]
 
-        if 'Wheel' not in attr.Get().ToExtString():
-            return
-
         fname = f'test-{attr.Get().ToExtString()}.png'
         render(grey_shapes, red_shapes, fname)
 
@@ -208,11 +205,13 @@ def find_wheels_visually():
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
-                {"role": "system", "content": """You will be shown a CAD model of an open wheel race car. 
-                One solid will be RED. If nothing is highlighted then respond with the word none.
-                Is the red highlighted component a wheel, tyre, rim or a part of the wheel? Either at the front or
-                back. Do not count the suspension.
-                If so, respond with the word yes. Otherwise say no and why not"""},
+                {"role": "system", "content": """You are shown a 2D top-view image of a formula-style car in a black background. 
+Tyres can appear as rectangles in a 2D dimensional view from the top. Consider that part of the tyre might be hidden below other 
+parts of the car and as such will appear darker or nor complete.
+
+Please determine if the red-colored part of the car is a wheel and estimate a likelihood that is a wheel, and explain your reasoning.
+                
+If so, respond with the word yes. Otherwise say no and why not"""},
                 {"role": "user", "content": [
                     {"type": "image_url", "image_url": {
                         "url": f"data:image/png;base64,{b64}"
